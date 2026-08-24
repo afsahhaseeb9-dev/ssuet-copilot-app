@@ -18,7 +18,9 @@ export default function HomeScreen() {
         />
       }>
       <ThemedView style={styles.titleContainer}>
-        
+        <Link href="/(auth)/signup">
+  <ThemedText type="link">Go to Signup (test)</ThemedText>
+</Link>
         <ThemedText type="title">Welcome!</ThemedText>
         <HelloWave />
       </ThemedView>
