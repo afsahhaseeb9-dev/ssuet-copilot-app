@@ -8,7 +8,6 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch the profile row (which contains the role) for a given user id
   async function fetchProfile(userId) {
     const { data, error } = await supabase
       .from('profiles')
@@ -24,30 +23,43 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    // On app start: check if a session already exists (persisted login)
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    let isMounted = true;
+
+    async function init() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!isMounted) return;
+
       setSession(session);
+
       if (session?.user) {
         const profileData = await fetchProfile(session.user.id);
+        if (!isMounted) return;
         setProfile(profileData);
       }
-      setLoading(false);
-    });
 
-    // Listen for login/logout/token-refresh events while the app is open
+      setLoading(false);
+    }
+
+    init();
+
     const { data: listener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        if (session?.user) {
-          const profileData = await fetchProfile(session.user.id);
+      async (_event, newSession) => {
+        setLoading(true); // pause redirect decisions while we refresh profile
+        setSession(newSession);
+
+        if (newSession?.user) {
+          const profileData = await fetchProfile(newSession.user.id);
           setProfile(profileData);
         } else {
           setProfile(null);
         }
+
+        setLoading(false); // only now is it safe to redirect based on role
       }
     );
 
     return () => {
+      isMounted = false;
       listener.subscription.unsubscribe();
     };
   }, []);
@@ -56,7 +68,6 @@ export function AuthProvider({ children }) {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { error };
 
-    // Create the matching profile row — RLS enforces role must be 'guest'
     if (data.user) {
       const { error: profileError } = await supabase.from('profiles').insert({
         id: data.user.id,
