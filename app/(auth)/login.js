@@ -1,13 +1,14 @@
-import { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { TextInput, Button, Text } from 'react-native-paper';
-import { Link, router } from 'expo-router';
 import { useAuth } from '@/hooks/use-auth';
+import { Link } from 'expo-router';
+import { useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { Button, Text, TextInput } from 'react-native-paper';
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -50,12 +51,18 @@ export default function LoginScreen() {
       />
 
       <TextInput
-        label="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        style={styles.input}
-      />
+  label="Password"
+  value={password}
+  onChangeText={setPassword}
+  secureTextEntry={!showPassword}
+  right={
+    <TextInput.Icon
+      icon={showPassword ? 'eye-off' : 'eye'}
+      onPress={() => setShowPassword(!showPassword)}
+    />
+  }
+  style={styles.input}
+/>
 
       {errorMsg ? <Text style={styles.error}>{errorMsg}</Text> : null}
 
