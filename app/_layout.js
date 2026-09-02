@@ -17,41 +17,65 @@ function RootNavigator() {
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return; // wait until we know the auth state
 
-    const inAuthGroup = segments[0] === '(auth)';
+  if (loading) return;
 
-    if (!session && !inAuthGroup) {
-      // Not logged in, and not already on an auth screen → send to login
+  const currentGroup = segments[0]; // 'index' | '(auth)' | '(admin)' | '(teacher)' | '(student)' | '(guest)' | 'modal'
+
+  if (!session) {
+    if (currentGroup !== '(auth)') {
       router.replace('/(auth)/login');
-    } else if (session && inAuthGroup) {
-      // Logged in, but sitting on login/signup → send to their dashboard
-      if (role === 'admin') router.replace('/(admin)');
-      else if (role === 'teacher') router.replace('/(teacher)');
-      else if (role === 'student') router.replace('/(student)');
-      else router.replace('/(guest)');
     }
-  }, [session, role, loading, segments]);
-
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+    return;
   }
 
+  // Logged in — figure out which group they should be in
+  let targetGroup;
+  if (role === 'admin') targetGroup = '(admin)';
+  else if (role === 'teacher') targetGroup = '(teacher)';
+  else if (role === 'student') targetGroup = '(student)';
+  else targetGroup = '(guest)';
+
+  if (currentGroup !== targetGroup) {
+    if (role === 'admin') router.replace('/admin-dashboard');
+    else if (role === 'teacher') router.replace('/teacher-dashboard');
+    else if (role === 'student') router.replace('/student-dashboard');
+    else router.replace('/guest-dashboard');
+  }
+}, [session, role, loading, segments]);
+
   return (
-    <Stack>
-      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-      <Stack.Screen name="(admin)" options={{ headerShown: false }} />
-      <Stack.Screen name="(teacher)" options={{ headerShown: false }} />
-      <Stack.Screen name="(student)" options={{ headerShown: false }} />
-      <Stack.Screen name="(guest)" options={{ headerShown: false }} />
-      <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-    </Stack>
+    <>
+      <Stack>
+  <Stack.Screen name="index" options={{ headerShown: false }} />
+  <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+  <Stack.Screen name="(auth)/signup" options={{ headerShown: false }} />
+  <Stack.Screen name="(admin)/admin-dashboard" options={{ headerShown: false }} />
+  <Stack.Screen name="(teacher)/teacher-dashboard" options={{ headerShown: false }} />
+  <Stack.Screen name="(student)/student-dashboard" options={{ headerShown: false }} />
+  <Stack.Screen name="(guest)/guest-dashboard" options={{ headerShown: false }} />
+  <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+</Stack>
+
+      {loading && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: 'rgba(0,0,0,0.6)',
+          }}>
+          <ActivityIndicator size="large" />
+        </View>
+      )}
+    </>
   );
 }
+
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();

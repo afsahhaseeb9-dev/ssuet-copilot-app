@@ -4,9 +4,11 @@ import { supabase } from '@/lib/supabase';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [authState, setAuthState] = useState({
+    session: null,
+    profile: null,
+    loading: true,
+  });
 
   async function fetchProfile(userId) {
     const { data, error } = await supabase
@@ -16,9 +18,10 @@ export function AuthProvider({ children }) {
       .single();
 
     if (error) {
-      console.log('Error fetching profile:', error.message);
+      console.log('Error fetching profile:', error.message, 'for userId:', userId);
       return null;
     }
+    console.log('Fetched profile:', data);
     return data;
   }
 
@@ -26,47 +29,33 @@ export function AuthProvider({ children }) {
     let isMounted = true;
 
     async function init() {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session: existingSession } } = await supabase.auth.getSession();
       if (!isMounted) return;
 
-      setSession(session);
-
-      if (session?.user) {
-        const profileData = await fetchProfile(session.user.id);
-        if (!isMounted) return;
-        setProfile(profileData);
+      let profileData = null;
+      if (existingSession?.user) {
+        profileData = await fetchProfile(existingSession.user.id);
       }
+      if (!isMounted) return;
 
-      setLoading(false);
+      setAuthState({ session: existingSession, profile: profileData, loading: false });
     }
 
     init();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
-        setLoading(true); // pause redirect decisions while we refresh profile
-        setSession(newSession);
-
-        if (newSession?.user) {
-          const profileData = await fetchProfile(newSession.user.id);
-          setProfile(profileData);
-        } else {
-          setProfile(null);
-        }
-
-        setLoading(false); // only now is it safe to redirect based on role
-      }
-    );
-
     return () => {
       isMounted = false;
-      listener.subscription.unsubscribe();
     };
   }, []);
 
   async function signUp(email, password, fullName) {
+    setAuthState((prev) => ({ ...prev, loading: true }));
+
     const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) return { error };
+    if (error) {
+      setAuthState((prev) => ({ ...prev, loading: false }));
+      return { error };
+    }
 
     if (data.user) {
       const { error: profileError } = await supabase.from('profiles').insert({
@@ -75,31 +64,48 @@ export function AuthProvider({ children }) {
         email: email,
         role: 'guest',
       });
-      if (profileError) return { error: profileError };
+      if (profileError) {
+        setAuthState((prev) => ({ ...prev, loading: false }));
+        return { error: profileError };
+      }
+
+      const profileData = await fetchProfile(data.user.id);
+      console.log('signUp - new user id:', data.user.id, 'profile:', profileData);
+      setAuthState({ session: data.session, profile: profileData, loading: false });
     }
 
     return { data, error: null };
   }
 
   async function signIn(email, password) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { data, error };
+    setAuthState((prev) => ({ ...prev, loading: true }));
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setAuthState((prev) => ({ ...prev, loading: false }));
+      return { error };
+    }
+
+    if (data.user) {
+      const profileData = await fetchProfile(data.user.id);
+      console.log('signIn - user id:', data.user.id, 'profile:', profileData);
+      setAuthState({ session: data.session, profile: profileData, loading: false });
+    }
+
+    return { data, error: null };
   }
 
   async function signOut() {
+    setAuthState((prev) => ({ ...prev, loading: true }));
     await supabase.auth.signOut();
-    setProfile(null);
-    setSession(null);
+    setAuthState({ session: null, profile: null, loading: false });
   }
 
   const value = {
-    session,
-    profile,
-    role: profile?.role ?? null,
-    loading,
+    session: authState.session,
+    profile: authState.profile,
+    role: authState.profile?.role ?? null,
+    loading: authState.loading,
     signUp,
     signIn,
     signOut,
